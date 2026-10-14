@@ -1,43 +1,53 @@
 {% extends "base.html" %}
 {% block title %}Ticket #{{ ticket.id }} - Support Triage{% endblock %}
+{% block container_class %}container-wide{% endblock %}
 
 {% block content %}
-<p><a href="{{ url_for('main.ticket_list') }}">&larr; All tickets</a></p>
-<h1>Ticket #{{ ticket.id }}</h1>
+<p class="back"><a href="{{ url_for('main.ticket_list') }}">&larr; All tickets</a></p>
 
-<section class="card">
-  <h2>{{ ticket.subject }}</h2>
-  <p class="muted small">From {{ ticket.customer_email }} &middot; {{ ticket.created_at }}</p>
-  <p class="prewrap">{{ ticket.message }}</p>
-</section>
+<header class="page-head">
+  <div>
+    <p class="eyebrow">Ticket #{{ ticket.id }}</p>
+    <h1 class="h1-wrap">{{ ticket.subject }}</h1>
+    <p class="meta">From {{ ticket.customer_email }} &middot; received {{ ticket.created_at|friendly_dt }}</p>
+  </div>
+  <span class="badge status-{{ ticket.analysis_status }}">{{ ticket.analysis_status }}</span>
+</header>
 
-<section class="card">
-  <h2>AI analysis</h2>
-  {% if ticket.analysis_status == 'completed' %}
-    <dl class="facts">
-      <dt>Category</dt><dd>{{ ticket.category }}</dd>
-      <dt>Sentiment</dt><dd>{{ ticket.sentiment }}</dd>
-      <dt>Urgency</dt><dd><span class="badge urgency-{{ ticket.urgency }}">{{ ticket.urgency }}</span></dd>
-      <dt>Human escalation</dt>
-      <dd>
-        {% if ticket.escalate_to_human %}<span class="badge escalate">Recommended</span>
-        {% else %}Not recommended{% endif %}
-      </dd>
-    </dl>
-    <h3>Why</h3>
-    <p>{{ ticket.explanation }}</p>
-    <h3>Suggested response <span class="muted small">(draft &mdash; needs human review before sending)</span></h3>
-    <p class="prewrap draft">{{ ticket.suggested_response }}</p>
-    <p class="muted small">Model: {{ ticket.model }}. AI output is a recommendation only.</p>
-  {% elif ticket.analysis_status == 'failed' %}
-    <p class="error">Analysis failed: {{ error_message }}</p>
-    <p class="muted">The ticket was saved. A person should review it manually, or retry the analysis.</p>
-    <form method="post" action="{{ url_for('main.ticket_retry', ticket_id=ticket.id) }}" data-busy="Retrying&hellip;">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      <button type="submit" class="button">Retry analysis</button>
-    </form>
-  {% else %}
-    <p class="muted">Analysis pending.</p>
-  {% endif %}
-</section>
+<div class="detail-grid">
+  <section class="card">
+    <h2 class="card-title">Message</h2>
+    <p class="prewrap">{{ ticket.message }}</p>
+  </section>
+
+  <section class="card">
+    <h2 class="card-title">AI analysis</h2>
+    {% if ticket.analysis_status == 'completed' %}
+      <dl class="facts">
+        <dt>Category</dt><dd><span class="chip">{{ ticket.category|replace('_', ' ') }}</span></dd>
+        <dt>Sentiment</dt><dd><span class="sent sent-{{ ticket.sentiment }}"><i></i>{{ ticket.sentiment }}</span></dd>
+        <dt>Urgency</dt><dd><span class="badge urgency-{{ ticket.urgency }}">{{ ticket.urgency }}</span></dd>
+        <dt>Human escalation</dt>
+        <dd>
+          {% if ticket.escalate_to_human %}<span class="badge escalate">Recommended</span>
+          {% else %}<span class="muted-text">Not recommended</span>{% endif %}
+        </dd>
+      </dl>
+      <h3 class="sub-title">Why</h3>
+      <p>{{ ticket.explanation }}</p>
+      <h3 class="sub-title">Suggested response <span class="muted-text small">draft &mdash; needs human review before sending</span></h3>
+      <p class="prewrap draft">{{ ticket.suggested_response }}</p>
+      <p class="muted-text small">Model: {{ ticket.model }}. AI output is a recommendation only.</p>
+    {% elif ticket.analysis_status == 'failed' %}
+      <p class="error">Analysis failed: {{ error_message }}</p>
+      <p class="muted-text">The ticket was saved. A person should review it manually, or retry the analysis.</p>
+      <form method="post" action="{{ url_for('main.ticket_retry', ticket_id=ticket.id) }}" data-busy="Retrying&hellip;">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button type="submit" class="button">Retry analysis</button>
+      </form>
+    {% else %}
+      <p class="muted-text">Analysis pending.</p>
+    {% endif %}
+  </section>
+</div>
 {% endblock %}

@@ -1,3 +1,5 @@
+from datetime import datetime, timezone
+
 from flask_wtf.csrf import CSRFError
 from flask import (
     Blueprint,
@@ -99,8 +101,16 @@ def ticket_list():
     )
     # Active filters as query args, so pagination links keep them.
     query = {k: ("1" if k == "escalated" else v) for k, v in filters.items()}
+    # Summary cards always describe *all* tickets, whatever filter is active.
+    stats = {
+        "total": repository.count_tickets(db),
+        "escalated": repository.count_tickets(db, {"escalated": 1}),
+        "critical": repository.count_tickets(db, {"urgency": "critical"}),
+        "failed": repository.count_tickets(db, {"status": "failed"}),
+    }
     return render_template(
         "tickets.html",
+        stats=stats,
         tickets=tickets,
         total=total,
         page=page,
@@ -144,6 +154,16 @@ def ticket_detail(ticket_id: int):
         ticket["analysis_error"], "Analysis failed."
     ) if ticket["analysis_error"] else None
     return render_template("ticket.html", ticket=ticket, error_message=error_message)
+
+
+@bp.app_template_filter("friendly_dt")
+def friendly_dt(value) -> str:
+    """'2026-10-14T18:50:42+00:00' -> '14 Oct 2026, 18:50 UTC'."""
+    try:
+        moment = datetime.fromisoformat(value).astimezone(timezone.utc)
+    except (TypeError, ValueError):
+        return value or ""
+    return f"{moment.day} {moment:%b %Y}, {moment:%H:%M} UTC"
 
 
 def _limits() -> dict:

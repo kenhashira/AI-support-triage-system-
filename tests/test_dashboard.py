@@ -1,3 +1,5 @@
+import re
+
 import pytest
 
 from app import repository
@@ -35,7 +37,7 @@ def result(category="billing", urgency="high", escalate=True):
 def subjects_on(client, url):
     """Subjects of the tickets shown on a dashboard page, in order."""
     body = client.get(url).get_data(as_text=True)
-    return [line.split("</a>")[0].split(">")[-1] for line in body.splitlines() if "/tickets/" in line and "</a>" in line and "<td>" in line]
+    return re.findall(r'class="ticket-link" href="/tickets/\d+">([^<]*)</a>', body)
 
 
 # --- list ----------------------------------------------------------------------
@@ -209,3 +211,74 @@ def test_retry_cannot_be_claimed_twice(db):
     ticket_id = seed(db, "x", failed="timeout")
     assert repository.claim_for_retry(db, ticket_id) is True
     assert repository.claim_for_retry(db, ticket_id) is False  # no double API call
+
+
+# --- design features: summary cards, friendly dates, nav, stylesheet -------------
+
+def stat_values(client, url="/tickets"):
+    body = client.get(url).get_data(as_text=True)
+    labels = re.findall(r'<span class="stat-label">([^<]+)</span>\s*<span class="stat-value">(\d+)</span>', body)
+    return dict(labels)
+
+
+def test_summary_cards_count_all_tickets(client, db):
+    seed(db, "a", result("billing", "critical", True))
+    seed(db, "b", result("billing", "low", False))
+    seed(db, "c", failed="timeout")
+    seed(db, "d")
+    assert stat_values(client) == {
+        "All tickets": "4",
+        "Escalation recommended": "1",
+        "Critical urgency": "1",
+        "Analysis failed": "1",
+    }
+
+
+def test_summary_cards_ignore_the_active_filter(client, db):
+    seed(db, "a", result("billing", "critical", True))
+    seed(db, "b", result("technical", "low", False))
+    assert stat_values(client, "/tickets?category=technical")["All tickets"] == "2"
+
+
+def test_summary_cards_link_to_filtered_views(client, db):
+    seed(db, "a", failed="timeout")
+    body = client.get("/tickets").get_data(as_text=True)
+    assert 'href="/tickets?status=failed"' in body
+    assert 'href="/tickets?escalated=1"' in body
+    assert 'href="/tickets?urgency=critical"' in body
+
+
+def test_timestamps_are_human_friendly(client, db):
+    ticket_id = seed(db, "x", result())
+    with db:
+        db.execute("UPDATE tickets SET created_at = ? WHERE id = ?",
+                   ("2026-10-14T18:50:42+00:00", ticket_id))
+    for path in ("/tickets", f"/tickets/{ticket_id}"):
+        body = client.get(path).get_data(as_text=True)
+        assert "14 Oct 2026, 18:50 UTC" in body
+        assert "T18:50:42" not in body
+
+
+def test_friendly_dt_filter_tolerates_bad_values():
+    from app.routes import friendly_dt
+    assert friendly_dt("not a date") == "not a date"
+    assert friendly_dt(None) == ""
+
+
+def test_nav_marks_current_page(client):
+    home = client.get("/").get_data(as_text=True)
+    assert re.search(r'href="/" class="active">New ticket', home)
+    dash = client.get("/tickets").get_data(as_text=True)
+    assert re.search(r'href="/tickets" class="active">Dashboard', dash)
+
+
+def test_active_filter_shows_clear_link_and_match_count(client, db):
+    seed(db, "a", result("billing", "high", True))
+    body = client.get("/tickets?urgency=high").get_data(as_text=True)
+    assert "Clear" in body and "match" in body
+    assert "Clear" not in client.get("/tickets").get_data(as_text=True)
+
+
+def test_stylesheet_is_served(client):
+    response = client.get("/static/style.css")
+    assert response.status_code == 200 and b"--accent" in response.data

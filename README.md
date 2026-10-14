@@ -1,4 +1,4 @@
-# AI Support Triage
+﻿# AI Support Triage
 
 A small Flask web app that accepts customer-support tickets, asks Anthropic's Claude to analyze each one, and shows the results in a dashboard.
 
@@ -16,7 +16,7 @@ For every ticket the model returns a **category**, **sentiment**, **urgency**, a
 - Failures are never fatal: if the API times out, rate-limits, refuses or returns garbage, the ticket is **still saved**, the failure is shown clearly, and a **Retry analysis** button re-runs it
 - Spend and abuse controls: per-client rate limit plus a global hourly cap on AI calls
 - Hardened responses: strict Content-Security-Policy and other security headers, CSRF protection, escaped output
-- 159 automated tests, none of which need an API key or network
+- 167 automated tests, none of which need an API key or network
 
 ## Quick start
 
@@ -50,6 +50,17 @@ flask --app app run
 
 Open <http://127.0.0.1:5000>. This is Flask's development server; it is not meant for production.
 
+### Demo data (optional)
+
+The dashboard shows categories and urgency only for tickets that have been analyzed, which needs a funded API key. To see it populated without one, add a dozen invented sample tickets (no API calls, no cost):
+
+```bash
+python scripts/seed_demo.py            # add demo tickets
+python scripts/seed_demo.py --remove   # delete them again
+```
+
+Demo rows use `demo+<n>@example.com` addresses and are clearly not real model output.
+
 ### Troubleshooting
 
 - **`SECRET_KEY` errors at startup:** the app refuses to run with a missing, placeholder (`change-me`) or short (under 16 characters) secret. Generate one as shown above.
@@ -75,12 +86,12 @@ All configuration comes from environment variables (loaded from a git-ignored `.
 ## Architecture
 
 ```
-Browser ──form POST──▶ routes.py ──▶ services.py ──▶ ai_client.py ──▶ Anthropic API
-   ▲                      │              │                │
-   │                      │              ▼                ▼
-   └──── HTML (Jinja) ◀───┘        repository.py     schemas.py
-                                         │          (validates reply)
-                                         ▼
+Browser â”€â”€form POSTâ”€â”€â–¶ routes.py â”€â”€â–¶ services.py â”€â”€â–¶ ai_client.py â”€â”€â–¶ Anthropic API
+   â–²                      â”‚              â”‚                â”‚
+   â”‚                      â”‚              â–¼                â–¼
+   â””â”€â”€â”€â”€ HTML (Jinja) â—€â”€â”€â”€â”˜        repository.py     schemas.py
+                                         â”‚          (validates reply)
+                                         â–¼
                                       SQLite
 ```
 
@@ -161,7 +172,7 @@ Web:
 pytest
 ```
 
-159 tests, a few seconds, **no API key and no network**. The Anthropic SDK is replaced by fakes, so every failure path (timeout, rate limit, refusal, truncation, malformed JSON, ...) is exercised deterministically. Coverage areas: schemas, repository and constraints, the AI client, the submit/retry flow, dashboard filters and pagination, security headers, rate limiting, error pages, schema upgrade, and secret-leak checks.
+167 tests, a few seconds, **no API key and no network**. The Anthropic SDK is replaced by fakes, so every failure path (timeout, rate limit, refusal, truncation, malformed JSON, ...) is exercised deterministically. Coverage areas: schemas, repository and constraints, the AI client, the submit/retry flow, dashboard filters and pagination, security headers, rate limiting, error pages, schema upgrade, and secret-leak checks.
 
 ### Optional: check against the real API
 
@@ -180,7 +191,7 @@ app/            application package (see Architecture)
   templates/    Jinja2 templates
   static/       CSS and a little vanilla JS (character counter, busy button)
 tests/          pytest suite
-scripts/        live_smoke.py (optional, paid)
+scripts/        live_smoke.py (optional, paid), seed_demo.py (sample data, free)
 .env.example    configuration template (no secrets)
 ```
 

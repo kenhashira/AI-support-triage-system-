@@ -1,36 +1,69 @@
 {% extends "base.html" %}
 {% block title %}New ticket - Support Triage{% endblock %}
+{% block container_class %}container-wide{% endblock %}
 
 {% block content %}
-<h1>Submit a support ticket</h1>
-<p class="muted">The subject and message are analyzed by an AI model (Anthropic Claude).
-Don't include passwords or payment card numbers.</p>
+<div class="intro">
+  <p class="eyebrow">New ticket</p>
+  <h1>Tell us what's going on</h1>
+  <p class="lede">Describe the problem in a few sentences. An AI assistant helps our team
+  sort and prioritise tickets, and a person reviews every one.</p>
+</div>
 
-<form method="post" action="{{ url_for('main.submit') }}" data-busy="Analyzing&hellip;" novalidate>
-  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+<div class="form-layout">
+  <form class="card form-card" method="post" action="{{ url_for('main.submit') }}" data-busy="Analyzing&hellip;" novalidate>
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
-  <div class="field">
-    <label for="customer_email">Customer email</label>
-    <input id="customer_email" name="customer_email" type="email" maxlength="254"
-           value="{{ values.get('customer_email', '') }}" required>
-    {% if errors.customer_email %}<p class="error">{{ errors.customer_email }}</p>{% endif %}
-  </div>
+    <div class="field">
+      <label for="customer_email">Email address</label>
+      <input id="customer_email" name="customer_email" type="email" maxlength="254"
+             placeholder="you@example.com" autocomplete="email"
+             value="{{ values.get('customer_email', '') }}" required>
+      {% if errors.customer_email %}<p class="error">{{ errors.customer_email }}</p>{% endif %}
+    </div>
 
-  <div class="field">
-    <label for="subject">Subject</label>
-    <input id="subject" name="subject" type="text" maxlength="{{ max_subject }}"
-           value="{{ values.get('subject', '') }}" required>
-    {% if errors.subject %}<p class="error">{{ errors.subject }}</p>{% endif %}
-  </div>
+    <div class="field">
+      <label for="subject">Subject</label>
+      <input id="subject" name="subject" type="text" maxlength="{{ max_subject }}"
+             placeholder="A short summary, e.g. &ldquo;Charged twice this month&rdquo;"
+             value="{{ values.get('subject', '') }}" required>
+      {% if errors.subject %}<p class="error">{{ errors.subject }}</p>{% endif %}
+    </div>
 
-  <div class="field">
-    <label for="message">Message</label>
-    <textarea id="message" name="message" rows="8" maxlength="{{ max_message }}"
-              data-counter="message-count" required>{{ values.get('message', '') }}</textarea>
-    <p class="muted small"><span id="message-count">0</span> / {{ max_message }}</p>
-    {% if errors.message %}<p class="error">{{ errors.message }}</p>{% endif %}
-  </div>
+    <div class="field">
+      <label for="message">Message</label>
+      <textarea id="message" name="message" rows="9" maxlength="{{ max_message }}"
+                placeholder="What happened, and what would you like us to do?"
+                data-counter="message-count" required>{{ values.get('message', '') }}</textarea>
+      <div class="field-foot">
+        <span class="hint">Please don't include passwords or card numbers.</span>
+        <span class="counter"><span id="message-count">0</span> / {{ max_message }}</span>
+      </div>
+      {% if errors.message %}<p class="error">{{ errors.message }}</p>{% endif %}
+    </div>
 
-  <button type="submit" class="button">Submit ticket</button>
-</form>
+    <button type="submit" class="button button-block">Submit ticket</button>
+  </form>
+
+  <aside class="aside" aria-label="How it works">
+    <h2 class="aside-title">What happens next</h2>
+    <ol class="steps">
+      <li>
+        <span class="step-num">1</span>
+        <div><strong>Your ticket is saved</strong>
+        <p>Before anything else, so it can't get lost.</p></div>
+      </li>
+      <li>
+        <span class="step-num">2</span>
+        <div><strong>AI suggests a triage</strong>
+        <p>It reads your subject and message and proposes a category, urgency and draft reply. Your email address isn't shared with it.</p></div>
+      </li>
+      <li>
+        <span class="step-num">3</span>
+        <div><strong>A person reviews it</strong>
+        <p>The AI only recommends. It can't issue refunds or change anything.</p></div>
+      </li>
+    </ol>
+  </aside>
+</div>
 {% endblock %}

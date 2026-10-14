@@ -1,66 +1,107 @@
 {% extends "base.html" %}
 {% block title %}Dashboard - Support Triage{% endblock %}
+{% block container_class %}container-wide{% endblock %}
 
 {% block content %}
-<h1>Tickets</h1>
+<header class="page-head">
+  <div>
+    <p class="eyebrow">Overview</p>
+    <h1>Tickets</h1>
+  </div>
+  <a class="button" href="{{ url_for('main.submit_form') }}">New ticket</a>
+</header>
 
-<form method="get" action="{{ url_for('main.ticket_list') }}" class="filters card">
+<section class="stats" aria-label="Summary">
+  <a class="stat" href="{{ url_for('main.ticket_list') }}">
+    <span class="stat-label">All tickets</span>
+    <span class="stat-value">{{ stats.total }}</span>
+  </a>
+  <a class="stat stat-escalate" href="{{ url_for('main.ticket_list', escalated=1) }}">
+    <span class="stat-label">Escalation recommended</span>
+    <span class="stat-value">{{ stats.escalated }}</span>
+  </a>
+  <a class="stat stat-critical" href="{{ url_for('main.ticket_list', urgency='critical') }}">
+    <span class="stat-label">Critical urgency</span>
+    <span class="stat-value">{{ stats.critical }}</span>
+  </a>
+  <a class="stat stat-failed" href="{{ url_for('main.ticket_list', status='failed') }}">
+    <span class="stat-label">Analysis failed</span>
+    <span class="stat-value">{{ stats.failed }}</span>
+  </a>
+</section>
+
+<form method="get" action="{{ url_for('main.ticket_list') }}" class="filters">
   <label>Status
     <select name="status">
       <option value="">All</option>
-      {% for s in statuses %}<option value="{{ s }}" {{ 'selected' if filters.get('status') == s }}>{{ s }}</option>{% endfor %}
+      {% for s in statuses %}<option value="{{ s }}" {{ 'selected' if filters.get('status') == s }}>{{ s|capitalize }}</option>{% endfor %}
     </select>
   </label>
   <label>Category
     <select name="category">
       <option value="">All</option>
-      {% for c in categories %}<option value="{{ c }}" {{ 'selected' if filters.get('category') == c }}>{{ c }}</option>{% endfor %}
+      {% for c in categories %}<option value="{{ c }}" {{ 'selected' if filters.get('category') == c }}>{{ c|replace('_', ' ')|capitalize }}</option>{% endfor %}
     </select>
   </label>
   <label>Urgency
     <select name="urgency">
       <option value="">All</option>
-      {% for u in urgencies %}<option value="{{ u }}" {{ 'selected' if filters.get('urgency') == u }}>{{ u }}</option>{% endfor %}
+      {% for u in urgencies %}<option value="{{ u }}" {{ 'selected' if filters.get('urgency') == u }}>{{ u|capitalize }}</option>{% endfor %}
     </select>
   </label>
   <label class="check"><input type="checkbox" name="escalated" value="1" {{ 'checked' if filters.get('escalated') }}> Escalation recommended</label>
-  <button type="submit" class="button">Filter</button>
-  <a href="{{ url_for('main.ticket_list') }}">Clear</a>
+  <div class="filter-actions">
+    <button type="submit" class="button button-quiet">Apply</button>
+    {% if filters %}<a class="link-clear" href="{{ url_for('main.ticket_list') }}">Clear</a>{% endif %}
+  </div>
 </form>
 
-<p class="muted small">{{ total }} ticket{{ '' if total == 1 else 's' }}</p>
+<p class="result-count">{{ total }} ticket{{ '' if total == 1 else 's' }}{% if filters %} match{{ 'es' if total == 1 }} your filters{% endif %}</p>
 
 {% if tickets %}
-<div class="table-wrap">
-<table>
-  <thead>
-    <tr><th>#</th><th>Subject</th><th>Category</th><th>Urgency</th><th>Sentiment</th><th>Escalate</th><th>Status</th><th>Created</th></tr>
-  </thead>
-  <tbody>
-    {% for t in tickets %}
-    <tr>
-      <td>{{ t.id }}</td>
-      <td><a href="{{ url_for('main.ticket_detail', ticket_id=t.id) }}">{{ t.subject }}</a></td>
-      <td>{{ t.category or '—' }}</td>
-      <td>{% if t.urgency %}<span class="badge urgency-{{ t.urgency }}">{{ t.urgency }}</span>{% else %}—{% endif %}</td>
-      <td>{{ t.sentiment or '—' }}</td>
-      <td>{% if t.escalate_to_human %}<span class="badge escalate">Yes</span>{% elif t.analysis_status == 'completed' %}No{% else %}—{% endif %}</td>
-      <td><span class="badge status-{{ t.analysis_status }}">{{ t.analysis_status }}</span></td>
-      <td class="small">{{ t.created_at }}</td>
-    </tr>
-    {% endfor %}
-  </tbody>
-</table>
+<div class="table-card">
+  <div class="table-scroll">
+  <table class="tickets">
+    <thead>
+      <tr>
+        <th>Ticket</th><th>Category</th><th>Sentiment</th><th>Urgency</th><th>Escalation</th><th>Status</th><th>Received</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for t in tickets %}
+      <tr>
+        <td class="cell-subject">
+          <a class="ticket-link" href="{{ url_for('main.ticket_detail', ticket_id=t.id) }}">{{ t.subject }}</a>
+          <span class="sub">#{{ t.id }}</span>
+        </td>
+        <td data-label="Category">{% if t.category %}<span class="chip">{{ t.category|replace('_', ' ') }}</span>{% else %}<span class="dash">&mdash;</span>{% endif %}</td>
+        <td data-label="Sentiment">{% if t.sentiment %}<span class="sent sent-{{ t.sentiment }}"><i></i>{{ t.sentiment }}</span>{% else %}<span class="dash">&mdash;</span>{% endif %}</td>
+        <td data-label="Urgency">{% if t.urgency %}<span class="badge urgency-{{ t.urgency }}">{{ t.urgency }}</span>{% else %}<span class="dash">&mdash;</span>{% endif %}</td>
+        <td data-label="Escalation">{% if t.escalate_to_human %}<span class="badge escalate">Escalate</span>{% elif t.analysis_status == 'completed' %}<span class="muted-text">Not needed</span>{% else %}<span class="dash">&mdash;</span>{% endif %}</td>
+        <td data-label="Status"><span class="badge status-{{ t.analysis_status }}">{{ t.analysis_status }}</span></td>
+        <td data-label="Received" class="when">{{ t.created_at|friendly_dt }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
 </div>
 {% else %}
-  <p class="card muted">No tickets match. <a href="{{ url_for('main.submit_form') }}">Submit one</a>.</p>
+<div class="empty">
+  <svg class="empty-art" viewBox="0 0 64 64" width="56" height="56" aria-hidden="true">
+    <path d="M8 36l8-18h32l8 18v14a4 4 0 0 1-4 4H12a4 4 0 0 1-4-4V36z" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linejoin="round"/>
+    <path d="M8 36h14l3 6h14l3-6h14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linejoin="round"/>
+  </svg>
+  <p class="empty-title">No tickets match.</p>
+  <p class="muted-text">Try clearing the filters, or <a href="{{ url_for('main.submit_form') }}">submit a new ticket</a>.</p>
+</div>
 {% endif %}
 
 {% if pages > 1 %}
 <nav class="pager" aria-label="Pagination">
-  {% if page > 1 %}<a href="{{ url_for('main.ticket_list', page=page - 1, **query) }}">&larr; Newer</a>{% endif %}
-  <span class="muted">Page {{ page }} of {{ pages }}</span>
-  {% if page < pages %}<a href="{{ url_for('main.ticket_list', page=page + 1, **query) }}">Older &rarr;</a>{% endif %}
+  {% if page > 1 %}<a class="button button-quiet" href="{{ url_for('main.ticket_list', page=page - 1, **query) }}">&larr; Newer</a>{% else %}<span></span>{% endif %}
+  <span class="muted-text">Page {{ page }} of {{ pages }}</span>
+  {% if page < pages %}<a class="button button-quiet" href="{{ url_for('main.ticket_list', page=page + 1, **query) }}">Older &rarr;</a>{% else %}<span></span>{% endif %}
 </nav>
 {% endif %}
 {% endblock %}
