@@ -54,6 +54,7 @@ Open <http://127.0.0.1:5000>. This is Flask's development server; it is not mean
 
 - **`SECRET_KEY` errors at startup:** the app refuses to run with a missing, placeholder (`change-me`) or short (under 16 characters) secret. Generate one as shown above.
 - **Windows: `pip install` fails with `No such file or directory` on a very long path:** Windows limits paths to 260 characters and the `anthropic` package has long file names. Clone into a shorter folder (for example `C:\dev\triage`), or enable long paths (`reg add HKLM\SYSTEM\CurrentControlSet\Control\FileSystem /v LongPathsEnabled /t REG_DWORD /d 1 /f` in an administrator terminal, then restart).
+- **Tickets fail with "The AI service returned an error" (`api_error`) right after setup:** this is commonly an account with no credit (check the balance under Billing in the Anthropic Console; the API is billed separately from a Claude.ai subscription) or a misspelled `ANTHROPIC_MODEL`. Each failure is logged as `analysis failed code=... request_id=req_...` (never ticket text), so you can see the code and quote the request ID when asking Anthropic for help. A code of `auth` means the key itself was rejected.
 - **"AI analysis isn't configured yet" on a ticket:** `ANTHROPIC_API_KEY` is empty. Add it to `.env`, restart, and use **Retry analysis** on the ticket.
 
 ## Configuration
@@ -195,6 +196,27 @@ Known and deliberate for a demo of this scope:
 - **Classification quality isn't measured.** There is no labelled evaluation set, so accuracy on real tickets is unknown.
 - **Ticket content leaves your server** (sent to Anthropic for analysis). Check your data-handling obligations before using real customer data.
 - **Not deployed.** Nothing here covers HTTPS, a production WSGI server, backups or monitoring.
+
+## Design decisions and lessons
+
+**Decisions**
+
+- **Save first, analyze second.** The ticket is written to the database before the AI is called, so no API failure can lose a customer's message. Failures become a stored status plus a Retry button, not an error page.
+- **Treat model output like user input.** It is parsed and validated against a closed schema before use, rendered escaped, and never executed. The model is given no tools, so even a successful prompt injection can only produce a wrong recommendation that a human sees.
+- **One module owns the SDK.** Only `ai_client.py` imports `anthropic`; the rest of the app depends on a two-line interface. That is why every failure path is testable with fakes, with no API key.
+- **Fixed error codes, not raw error text.** Provider and model messages are never stored or shown, which keeps the UI predictable and keeps possible sensitive text out of the database and logs.
+- **Bound the spend.** A per-client rate limit and a global hourly cap on AI calls give a hard ceiling on cost; when the cap is hit, tickets are still saved and can be retried.
+
+**Things that surprised me or went wrong** (and what changed)
+
+- The SDK's `parse()` helper validates *inside* the call, so a truncated reply raises before `stop_reason` can be checked. Using `create()` plus our own validation keeps "truncated", "refused" and "invalid" distinguishable.
+- Pydantic's default mode would accept `"true"` or `1` for a boolean. For untrusted model output the escalation flag is now strictly boolean.
+- The SDK's schema helper moves length limits into field descriptions instead of enforcing them, so our own validation is the real gate, not the API's.
+- A self-review of the finished app found five real bugs: a 500 on very large ticket ids, a stale CSRF token that discarded the user's typed message, a request-size cap with too little headroom, an error class that accepted typo'd codes, and weak config validation. Each got a regression test that fails on the old code.
+- Tests can pass without testing anything. After the hardening phase, the key tests were checked by deliberately breaking the code (dropping a header, logging the API key, disabling the rate limit) and confirming the tests failed.
+- On Windows, `pip install` can fail inside a deeply nested folder because of the 260-character path limit; see Troubleshooting.
+
+**What isn't proven yet:** the test suite uses fakes, so it shows the app handles every kind of response correctly, but not that the live API accepts the exact request or how well the model classifies real tickets. `scripts/live_smoke.py` is the first check; a labelled evaluation set would be the next.
 
 ## License
 
