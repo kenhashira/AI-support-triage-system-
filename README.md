@@ -50,6 +50,12 @@ flask --app app run
 
 Open <http://127.0.0.1:5000>. This is Flask's development server; it is not meant for production.
 
+### Troubleshooting
+
+- **`SECRET_KEY` errors at startup:** the app refuses to run with a missing, placeholder (`change-me`) or short (under 16 characters) secret. Generate one as shown above.
+- **Windows: `pip install` fails with `No such file or directory` on a very long path:** Windows limits paths to 260 characters and the `anthropic` package has long file names. Clone into a shorter folder (for example `C:\dev\triage`), or enable long paths (`reg add HKLM\SYSTEM\CurrentControlSet\Control\FileSystem /v LongPathsEnabled /t REG_DWORD /d 1 /f` in an administrator terminal, then restart).
+- **"AI analysis isn't configured yet" on a ticket:** `ANTHROPIC_API_KEY` is empty. Add it to `.env`, restart, and use **Retry analysis** on the ticket.
+
 ## Configuration
 
 All configuration comes from environment variables (loaded from a git-ignored `.env`). The API key and secret are never hardcoded, never sent to the browser and never logged.
