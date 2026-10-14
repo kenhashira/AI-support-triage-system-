@@ -195,7 +195,10 @@ Known and deliberate for a demo of this scope:
 - **Classification quality isn't measured.** There is no labelled evaluation set, so accuracy on real tickets is unknown.
 - **Ticket content leaves your server** (sent to Anthropic for analysis). Check your data-handling obligations before using real customer data.
 - **Not deployed.** Nothing here covers HTTPS, a production WSGI server, backups or monitoring.
-- No license file is included. Add one if you want others to reuse the code.
+
+## License
+
+[MIT](LICENSE). You're free to use, modify and share this code; keep the copyright notice. It comes with no warranty.
 
 ## Possible next steps
 
