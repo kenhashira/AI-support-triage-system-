@@ -15,6 +15,17 @@ class ConfigError(RuntimeError):
     """Raised at startup when required configuration is missing."""
 
 
+def _int_env(name: str, default: int) -> int:
+    raw = os.environ.get(name, str(default))
+    try:
+        value = int(raw)
+    except ValueError:
+        raise ConfigError(f"{name} must be a whole number.") from None
+    if value < 1:
+        raise ConfigError(f"{name} must be at least 1.")
+    return value
+
+
 def load_config() -> dict:
     secret_key = os.environ.get("SECRET_KEY", "")
     if not secret_key or secret_key == "change-me":
@@ -42,4 +53,10 @@ def load_config() -> dict:
         "ANTHROPIC_TIMEOUT_SECONDS": timeout,
         # Relative paths resolve inside Flask's instance/ folder (git-ignored).
         "DATABASE_PATH": os.environ.get("DATABASE_PATH", "triage.db"),
+        # Abuse / spend controls (see app/ratelimit.py).
+        "RATE_LIMIT_PER_MINUTE": _int_env("RATE_LIMIT_PER_MINUTE", 10),
+        "AI_CALLS_PER_HOUR": _int_env("AI_CALLS_PER_HOUR", 200),
+        # Set true when serving over HTTPS so the session cookie is HTTPS-only.
+        "SESSION_COOKIE_SECURE": os.environ.get("SESSION_COOKIE_SECURE", "false").lower()
+        in ("1", "true", "yes"),
     }

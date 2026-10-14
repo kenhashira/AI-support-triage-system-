@@ -4,9 +4,10 @@ from dotenv import load_dotenv
 from flask import Flask, jsonify
 from flask_wtf.csrf import CSRFProtect
 
-from . import db, routes
+from . import db, errors, repository, routes, security
 from .ai_client import AnthropicTriageClient
 from .config import load_config
+from .ratelimit import GuardedTriageClient, SlidingWindowLimiter
 
 csrf = CSRFProtect()
 
@@ -20,6 +21,15 @@ def create_app(test_config: dict | None = None, triage_client=None) -> Flask:
     app = Flask(__name__)
     # Reject oversized request bodies early (413); worst-case legit ticket is ~63KB URL-encoded.
     app.config["MAX_CONTENT_LENGTH"] = 128 * 1024
+    app.config.update(
+        SESSION_COOKIE_HTTPONLY=True,
+        SESSION_COOKIE_SAMESITE="Lax",
+        RATE_LIMIT_PER_MINUTE=10,
+        AI_CALLS_PER_HOUR=200,
+        # A ticket still 'pending' after this long was interrupted (the API
+        # timeout is 30s), so it is marked failed and becomes retryable.
+        STALE_PENDING_SECONDS=300,
+    )
 
     if test_config is None:
         load_dotenv()
@@ -35,12 +45,25 @@ def create_app(test_config: dict | None = None, triage_client=None) -> Flask:
     csrf.init_app(app)
     db.init_app(app)
 
-    app.extensions["triage_client"] = triage_client or AnthropicTriageClient(
+    inner = triage_client or AnthropicTriageClient(
         api_key=app.config.get("ANTHROPIC_API_KEY", ""),
         model=app.config.get("ANTHROPIC_MODEL", "claude-haiku-5-5"),
         timeout=app.config.get("ANTHROPIC_TIMEOUT_SECONDS", 30.0),
     )
+    app.extensions["triage_client"] = GuardedTriageClient(
+        inner, app.config["AI_CALLS_PER_HOUR"]
+    )
+    app.extensions["client_limiter"] = SlidingWindowLimiter(
+        app.config["RATE_LIMIT_PER_MINUTE"], 60
+    )
+
+    security.init_app(app)
+    errors.init_app(app)
     app.register_blueprint(routes.bp)
+
+    # Anything left 'pending' from before a restart was interrupted.
+    with app.app_context():
+        repository.fail_stale_pending(db.get_db(), app.config["STALE_PENDING_SECONDS"])
 
     @app.get("/health")
     def health():

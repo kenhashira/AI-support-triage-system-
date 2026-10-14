@@ -70,6 +70,7 @@ ERROR_MESSAGES = {
     "truncated": "The AI response was cut off before it finished.",
     "invalid_output": "The AI response was not in the expected format.",
     "internal": "Something went wrong while analyzing this ticket.",
+    "interrupted": "Analysis was interrupted before it finished.",
 }
 
 

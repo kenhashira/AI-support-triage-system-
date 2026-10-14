@@ -1,7 +1,7 @@
 """All SQL lives here. Every query is parameterized."""
 
 import sqlite3
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from .schemas import TicketInput, TriageResult
 
@@ -12,11 +12,13 @@ def _now() -> str:
 
 def create_ticket(db: sqlite3.Connection, ticket: TicketInput) -> int:
     """Store a ticket with status 'pending'. Returns the new ticket id."""
+    now = _now()
     with db:
         cur = db.execute(
-            "INSERT INTO tickets (customer_email, subject, message, created_at) "
-            "VALUES (?, ?, ?, ?)",
-            (ticket.customer_email, ticket.subject, ticket.message, _now()),
+            "INSERT INTO tickets "
+            "(customer_email, subject, message, created_at, analysis_started_at) "
+            "VALUES (?, ?, ?, ?, ?)",
+            (ticket.customer_email, ticket.subject, ticket.message, now, now),
         )
     return cur.lastrowid
 
@@ -85,11 +87,26 @@ def claim_for_retry(db: sqlite3.Connection, ticket_id: int) -> bool:
     """
     with db:
         cur = db.execute(
-            "UPDATE tickets SET analysis_status = 'pending', analysis_error = NULL "
-            "WHERE id = ? AND analysis_status = 'failed'",
-            (ticket_id,),
+            "UPDATE tickets SET analysis_status = 'pending', analysis_error = NULL, "
+            "analysis_started_at = ? WHERE id = ? AND analysis_status = 'failed'",
+            (_now(), ticket_id),
         )
     return cur.rowcount == 1
+
+
+def fail_stale_pending(db: sqlite3.Connection, max_age_seconds: int) -> int:
+    """Mark tickets stuck in 'pending' (e.g. the server died mid-analysis) as
+    failed/'interrupted' so they show a Retry button. Returns how many."""
+    cutoff = (datetime.now(timezone.utc) - timedelta(seconds=max_age_seconds)).isoformat(
+        timespec="seconds"
+    )
+    with db:
+        cur = db.execute(
+            "UPDATE tickets SET analysis_status = 'failed', analysis_error = 'interrupted' "
+            "WHERE analysis_status = 'pending' AND analysis_started_at < ?",
+            (cutoff,),
+        )
+    return cur.rowcount
 
 
 # Filter name -> the column it applies to. Column names come from this fixed

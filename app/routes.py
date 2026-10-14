@@ -28,8 +28,24 @@ def submit_form():
     return render_template("submit.html", values={}, errors={}, **_limits())
 
 
+def _too_many_requests() -> bool:
+    """Per-client limit on state-changing requests (each can cost an API call)."""
+    limiter = current_app.extensions["client_limiter"]
+    return not limiter.allow(request.remote_addr or "unknown")
+
+
+def _sweep_stale() -> None:
+    repository.fail_stale_pending(get_db(), current_app.config["STALE_PENDING_SECONDS"])
+
+
 @bp.post("/")
 def submit():
+    if _too_many_requests():
+        flash("Too many submissions. Please wait a minute and try again.", "warning")
+        return (
+            render_template("submit.html", values=request.form, errors={}, **_limits()),
+            429,
+        )
     client = current_app.extensions["triage_client"]
     result = submit_ticket(get_db(), client, request.form)
 
@@ -72,6 +88,7 @@ def _parse_filters(args) -> dict:
 
 @bp.get("/tickets")
 def ticket_list():
+    _sweep_stale()
     db = get_db()
     filters = _parse_filters(request.args)
     total = repository.count_tickets(db, filters)
@@ -98,6 +115,9 @@ def ticket_list():
 
 @bp.post(f"/tickets/<{_ID}:ticket_id>/retry")
 def ticket_retry(ticket_id: int):
+    if _too_many_requests():
+        flash("Too many requests. Please wait a minute and try again.", "warning")
+        return redirect(url_for("main.ticket_detail", ticket_id=ticket_id))
     client = current_app.extensions["triage_client"]
     try:
         error = retry_analysis(get_db(), client, ticket_id)
@@ -116,6 +136,7 @@ def ticket_retry(ticket_id: int):
 
 @bp.get(f"/tickets/<{_ID}:ticket_id>")
 def ticket_detail(ticket_id: int):
+    _sweep_stale()
     ticket = repository.get_ticket(get_db(), ticket_id)
     if ticket is None:
         abort(404)

@@ -20,7 +20,8 @@ CREATE TABLE IF NOT EXISTS tickets (
     created_at      TEXT NOT NULL,
     analysis_status TEXT NOT NULL DEFAULT 'pending'
         CHECK (analysis_status IN ('pending', 'completed', 'failed')),
-    analysis_error  TEXT
+    analysis_error  TEXT,
+    analysis_started_at TEXT
 );
 
 CREATE TABLE IF NOT EXISTS analyses (
@@ -42,6 +43,15 @@ CREATE TABLE IF NOT EXISTS analyses (
 
 CREATE INDEX IF NOT EXISTS idx_tickets_created ON tickets(created_at DESC);
 """
+
+
+def _migrate(conn: sqlite3.Connection) -> None:
+    """Upgrade databases created by earlier versions (no migration framework:
+    just add what's missing)."""
+    columns = {row[1] for row in conn.execute("PRAGMA table_info(tickets)")}
+    if "analysis_started_at" not in columns:
+        conn.execute("ALTER TABLE tickets ADD COLUMN analysis_started_at TEXT")
+        conn.execute("UPDATE tickets SET analysis_started_at = created_at")
 
 
 def _resolve_path(app: Flask) -> str:
@@ -73,6 +83,7 @@ def init_db(app: Flask) -> None:
     conn = sqlite3.connect(path)
     try:
         conn.executescript(SCHEMA)
+        _migrate(conn)
         conn.commit()
     finally:
         conn.close()

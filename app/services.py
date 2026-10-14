@@ -6,6 +6,7 @@ called, so an API failure can never lose a customer's message.
 
 import logging
 import sqlite3
+import traceback
 from dataclasses import dataclass, field
 from typing import Mapping
 
@@ -109,10 +110,15 @@ def _analyze_and_store(
     except AnalysisError as exc:
         repository.mark_analysis_failed(db, ticket_id, exc.code)
         return exc.code
-    except Exception:
-        # A bug or DB error. Log the traceback (no ticket text is in our own
-        # log messages), keep the ticket, and show a generic failure.
-        logger.exception("unexpected error analyzing ticket_id=%s", ticket_id)
+    except Exception as exc:
+        # A bug or DB error. Log the exception *type* and call stack but not the
+        # exception message, which could echo ticket or model text.
+        logger.error(
+            "unexpected error analyzing ticket_id=%s type=%s\n%s",
+            ticket_id,
+            type(exc).__name__,
+            "".join(traceback.format_tb(exc.__traceback__)),
+        )
         repository.mark_analysis_failed(db, ticket_id, "internal")
         return "internal"
     return None
