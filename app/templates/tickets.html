@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% block title %}Dashboard - Support Triage{% endblock %}
+
+{% block content %}
+<h1>Tickets</h1>
+
+<form method="get" action="{{ url_for('main.ticket_list') }}" class="filters card">
+  <label>Status
+    <select name="status">
+      <option value="">All</option>
+      {% for s in statuses %}<option value="{{ s }}" {{ 'selected' if filters.get('status') == s }}>{{ s }}</option>{% endfor %}
+    </select>
+  </label>
+  <label>Category
+    <select name="category">
+      <option value="">All</option>
+      {% for c in categories %}<option value="{{ c }}" {{ 'selected' if filters.get('category') == c }}>{{ c }}</option>{% endfor %}
+    </select>
+  </label>
+  <label>Urgency
+    <select name="urgency">
+      <option value="">All</option>
+      {% for u in urgencies %}<option value="{{ u }}" {{ 'selected' if filters.get('urgency') == u }}>{{ u }}</option>{% endfor %}
+    </select>
+  </label>
+  <label class="check"><input type="checkbox" name="escalated" value="1" {{ 'checked' if filters.get('escalated') }}> Escalation recommended</label>
+  <button type="submit" class="button">Filter</button>
+  <a href="{{ url_for('main.ticket_list') }}">Clear</a>
+</form>
+
+<p class="muted small">{{ total }} ticket{{ '' if total == 1 else 's' }}</p>
+
+{% if tickets %}
+<div class="table-wrap">
+<table>
+  <thead>
+    <tr><th>#</th><th>Subject</th><th>Category</th><th>Urgency</th><th>Sentiment</th><th>Escalate</th><th>Status</th><th>Created</th></tr>
+  </thead>
+  <tbody>
+    {% for t in tickets %}
+    <tr>
+      <td>{{ t.id }}</td>
+      <td><a href="{{ url_for('main.ticket_detail', ticket_id=t.id) }}">{{ t.subject }}</a></td>
+      <td>{{ t.category or '—' }}</td>
+      <td>{% if t.urgency %}<span class="badge urgency-{{ t.urgency }}">{{ t.urgency }}</span>{% else %}—{% endif %}</td>
+      <td>{{ t.sentiment or '—' }}</td>
+      <td>{% if t.escalate_to_human %}<span class="badge escalate">Yes</span>{% elif t.analysis_status == 'completed' %}No{% else %}—{% endif %}</td>
+      <td><span class="badge status-{{ t.analysis_status }}">{{ t.analysis_status }}</span></td>
+      <td class="small">{{ t.created_at }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+</div>
+{% else %}
+  <p class="card muted">No tickets match. <a href="{{ url_for('main.submit_form') }}">Submit one</a>.</p>
+{% endif %}
+
+{% if pages > 1 %}
+<nav class="pager" aria-label="Pagination">
+  {% if page > 1 %}<a href="{{ url_for('main.ticket_list', page=page - 1, **query) }}">&larr; Newer</a>{% endif %}
+  <span class="muted">Page {{ page }} of {{ pages }}</span>
+  {% if page < pages %}<a href="{{ url_for('main.ticket_list', page=page + 1, **query) }}">Older &rarr;</a>{% endif %}
+</nav>
+{% endif %}
+{% endblock %}

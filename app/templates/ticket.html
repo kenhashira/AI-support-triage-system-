@@ -2,6 +2,7 @@
 {% block title %}Ticket #{{ ticket.id }} - Support Triage{% endblock %}
 
 {% block content %}
+<p><a href="{{ url_for('main.ticket_list') }}">&larr; All tickets</a></p>
 <h1>Ticket #{{ ticket.id }}</h1>
 
 <section class="card">
@@ -30,7 +31,11 @@
     <p class="muted small">Model: {{ ticket.model }}. AI output is a recommendation only.</p>
   {% elif ticket.analysis_status == 'failed' %}
     <p class="error">Analysis failed: {{ error_message }}</p>
-    <p class="muted">The ticket was saved. A person should review it manually.</p>
+    <p class="muted">The ticket was saved. A person should review it manually, or retry the analysis.</p>
+    <form method="post" action="{{ url_for('main.ticket_retry', ticket_id=ticket.id) }}" data-busy="Retrying&hellip;">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <button type="submit" class="button">Retry analysis</button>
+    </form>
   {% else %}
     <p class="muted">Analysis pending.</p>
   {% endif %}

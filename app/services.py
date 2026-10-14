@@ -67,18 +67,52 @@ def submit_ticket(
         return SubmitResult(field_errors=field_errors_from(exc))
 
     ticket_id = repository.create_ticket(db, ticket)
-    result = SubmitResult(ticket_id=ticket_id)
+    return SubmitResult(
+        ticket_id=ticket_id,
+        analysis_error=_analyze_and_store(db, client, ticket_id, ticket),
+    )
 
+
+def retry_analysis(
+    db: sqlite3.Connection, client: TriageClient, ticket_id: int
+) -> str | None:
+    """Re-run analysis for a *failed* ticket.
+
+    Returns None on success, or the failure code. Raises LookupError if the
+    ticket doesn't exist and ValueError if it isn't in the 'failed' state
+    (so completed tickets can't be used to burn API calls).
+    """
+    row = repository.get_ticket(db, ticket_id)
+    if row is None:
+        raise LookupError(ticket_id)
+    if not repository.claim_for_retry(db, ticket_id):
+        raise ValueError("ticket is not in a failed state")
+
+    ticket = TicketInput(
+        customer_email=row["customer_email"],
+        subject=row["subject"],
+        message=row["message"],
+    )
+    return _analyze_and_store(db, client, ticket_id, ticket)
+
+
+def _analyze_and_store(
+    db: sqlite3.Connection, client: TriageClient, ticket_id: int, ticket: TicketInput
+) -> str | None:
+    """Call the AI and persist the outcome. Returns None or a failure code.
+
+    The ticket already exists in the database, so no failure here can lose it.
+    """
     try:
         analysis = client.analyze(ticket)
         repository.save_analysis(db, ticket_id, analysis, client.model)
     except AnalysisError as exc:
         repository.mark_analysis_failed(db, ticket_id, exc.code)
-        result.analysis_error = exc.code
+        return exc.code
     except Exception:
         # A bug or DB error. Log the traceback (no ticket text is in our own
         # log messages), keep the ticket, and show a generic failure.
         logger.exception("unexpected error analyzing ticket_id=%s", ticket_id)
         repository.mark_analysis_failed(db, ticket_id, "internal")
-        result.analysis_error = "internal"
-    return result
+        return "internal"
+    return None

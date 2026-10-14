@@ -22,3 +22,14 @@ input, textarea { width:100%; padding:.5rem .6rem; font:inherit; border:1px soli
 .badge { padding:.1rem .5rem; border-radius:999px; background:var(--line); font-size:.875rem; }
 .urgency-high { background:#ffe3c2; } .urgency-critical { background:#ffc9c9; }
 .escalate { background:#ffc9c9; }
+.status-failed { background:#ffc9c9; } .status-completed { background:#d3f0dc; }
+.filters { display:flex; flex-wrap:wrap; gap:.75rem 1rem; align-items:end; }
+.filters label { margin:0; font-weight:600; font-size:.875rem; }
+.filters select { display:block; padding:.4rem; border:1px solid var(--line); border-radius:6px; font:inherit; }
+.filters .check { display:flex; gap:.4rem; align-items:center; }
+.filters .check input { width:auto; }
+.table-wrap { overflow-x:auto; }
+table { width:100%; border-collapse:collapse; background:var(--card); border:1px solid var(--line); }
+th, td { text-align:left; padding:.5rem .6rem; border-bottom:1px solid var(--line); white-space:nowrap; }
+td:nth-child(2) { white-space:normal; overflow-wrap:anywhere; min-width:10rem; }
+.pager { display:flex; justify-content:space-between; align-items:center; margin-top:1rem; }

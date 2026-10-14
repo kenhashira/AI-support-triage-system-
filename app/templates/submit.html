@@ -6,7 +6,7 @@
 <p class="muted">The subject and message are analyzed by an AI model (Anthropic Claude).
 Don't include passwords or payment card numbers.</p>
 
-<form method="post" action="{{ url_for('main.submit') }}" novalidate>
+<form method="post" action="{{ url_for('main.submit') }}" data-busy="Analyzing&hellip;" novalidate>
   <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
   <div class="field">

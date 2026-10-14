@@ -12,8 +12,8 @@ from flask import (
 from . import repository
 from .ai_client import ERROR_MESSAGES
 from .db import get_db
-from .schemas import MAX_MESSAGE_CHARS, MAX_SUBJECT_CHARS
-from .services import submit_ticket
+from .schemas import MAX_MESSAGE_CHARS, MAX_SUBJECT_CHARS, Category, Urgency
+from .services import retry_analysis, submit_ticket
 
 bp = Blueprint("main", __name__)
 
@@ -45,6 +45,68 @@ def submit():
     else:
         flash("Ticket submitted and analyzed.", "success")
     return redirect(url_for("main.ticket_detail", ticket_id=result.ticket_id))
+
+
+PER_PAGE = 20
+_STATUSES = ("pending", "completed", "failed")
+
+
+def _parse_filters(args) -> dict:
+    """Keep only recognised filter values; anything else is silently ignored."""
+    filters = {}
+    if args.get("status") in _STATUSES:
+        filters["status"] = args["status"]
+    if args.get("category") in {c.value for c in Category}:
+        filters["category"] = args["category"]
+    if args.get("urgency") in {u.value for u in Urgency}:
+        filters["urgency"] = args["urgency"]
+    if args.get("escalated") == "1":
+        filters["escalated"] = 1
+    return filters
+
+
+@bp.get("/tickets")
+def ticket_list():
+    db = get_db()
+    filters = _parse_filters(request.args)
+    total = repository.count_tickets(db, filters)
+    pages = max(1, -(-total // PER_PAGE))  # ceiling division
+    page = min(max(request.args.get("page", 1, type=int), 1), pages)
+    tickets = repository.list_tickets(
+        db, limit=PER_PAGE, offset=(page - 1) * PER_PAGE, filters=filters
+    )
+    # Active filters as query args, so pagination links keep them.
+    query = {k: ("1" if k == "escalated" else v) for k, v in filters.items()}
+    return render_template(
+        "tickets.html",
+        tickets=tickets,
+        total=total,
+        page=page,
+        pages=pages,
+        query=query,
+        filters=filters,
+        categories=[c.value for c in Category],
+        urgencies=[u.value for u in Urgency],
+        statuses=_STATUSES,
+    )
+
+
+@bp.post("/tickets/<int:ticket_id>/retry")
+def ticket_retry(ticket_id: int):
+    client = current_app.extensions["triage_client"]
+    try:
+        error = retry_analysis(get_db(), client, ticket_id)
+    except LookupError:
+        abort(404)
+    except ValueError:
+        flash("Only tickets whose analysis failed can be retried.", "warning")
+        return redirect(url_for("main.ticket_detail", ticket_id=ticket_id))
+
+    if error:
+        flash(f"Retry failed: {ERROR_MESSAGES[error]}", "warning")
+    else:
+        flash("Analysis completed.", "success")
+    return redirect(url_for("main.ticket_detail", ticket_id=ticket_id))
 
 
 @bp.get("/tickets/<int:ticket_id>")

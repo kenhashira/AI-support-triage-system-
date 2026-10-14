@@ -76,11 +76,61 @@ def get_ticket(db: sqlite3.Connection, ticket_id: int) -> dict | None:
     return dict(row) if row else None
 
 
+def claim_for_retry(db: sqlite3.Connection, ticket_id: int) -> bool:
+    """Atomically move a failed ticket back to 'pending'.
+
+    Returns False if the ticket isn't currently failed. Because the check and
+    the update are one statement, two simultaneous retry clicks can't both
+    win, so we never pay for two API calls for one retry.
+    """
+    with db:
+        cur = db.execute(
+            "UPDATE tickets SET analysis_status = 'pending', analysis_error = NULL "
+            "WHERE id = ? AND analysis_status = 'failed'",
+            (ticket_id,),
+        )
+    return cur.rowcount == 1
+
+
+# Filter name -> the column it applies to. Column names come from this fixed
+# map, never from user input; user values are always bound parameters.
+_FILTER_COLUMNS = {
+    "status": "t.analysis_status",
+    "category": "a.category",
+    "urgency": "a.urgency",
+    "escalated": "a.escalate_to_human",
+}
+
+
+def _where(filters: dict | None) -> tuple[str, list]:
+    clauses, params = [], []
+    for name, value in (filters or {}).items():
+        column = _FILTER_COLUMNS.get(name)
+        if column is None or value is None:
+            continue
+        clauses.append(f"{column} = ?")
+        params.append(value)
+    return (" WHERE " + " AND ".join(clauses)) if clauses else "", params
+
+
 def list_tickets(
-    db: sqlite3.Connection, limit: int = 50, offset: int = 0
+    db: sqlite3.Connection,
+    limit: int = 50,
+    offset: int = 0,
+    filters: dict | None = None,
 ) -> list[dict]:
+    where, params = _where(filters)
     rows = db.execute(
-        f"{_SELECT_TICKET} ORDER BY t.created_at DESC, t.id DESC LIMIT ? OFFSET ?",
-        (limit, offset),
+        f"{_SELECT_TICKET}{where} ORDER BY t.created_at DESC, t.id DESC LIMIT ? OFFSET ?",
+        (*params, limit, offset),
     ).fetchall()
     return [dict(r) for r in rows]
+
+
+def count_tickets(db: sqlite3.Connection, filters: dict | None = None) -> int:
+    where, params = _where(filters)
+    return db.execute(
+        "SELECT COUNT(*) FROM tickets t LEFT JOIN analyses a ON a.ticket_id = t.id"
+        f"{where}",
+        params,
+    ).fetchone()[0]
