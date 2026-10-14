@@ -28,6 +28,6 @@ def load_config() -> dict:
         "ANTHROPIC_TIMEOUT_SECONDS": float(
             os.environ.get("ANTHROPIC_TIMEOUT_SECONDS", "30")
         ),
-        "DATABASE_PATH": os.environ.get("DATABASE_PATH", "instance/triage.db"),
-        "MAX_TICKET_CHARS": int(os.environ.get("MAX_TICKET_CHARS", "5000")),
+        # Relative paths resolve inside Flask's instance/ folder (git-ignored).
+        "DATABASE_PATH": os.environ.get("DATABASE_PATH", "triage.db"),
     }

@@ -4,6 +4,7 @@ from dotenv import load_dotenv
 from flask import Flask, jsonify
 from flask_wtf.csrf import CSRFProtect
 
+from . import db
 from .config import load_config
 
 csrf = CSRFProtect()
@@ -28,6 +29,7 @@ def create_app(test_config: dict | None = None) -> Flask:
     )
 
     csrf.init_app(app)
+    db.init_app(app)
 
     @app.get("/health")
     def health():

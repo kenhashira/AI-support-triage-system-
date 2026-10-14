@@ -1,13 +1,6 @@
 import pytest
 
-from app import create_app
 from app.config import ConfigError, load_config
-
-
-@pytest.fixture
-def client():
-    app = create_app({"TESTING": True, "SECRET_KEY": "test-secret"})
-    return app.test_client()
 
 
 def test_health_endpoint(client):
