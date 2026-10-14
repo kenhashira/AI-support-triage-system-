@@ -1,3 +1,4 @@
+from flask_wtf.csrf import CSRFError
 from flask import (
     Blueprint,
     abort,
@@ -16,6 +17,10 @@ from .schemas import MAX_MESSAGE_CHARS, MAX_SUBJECT_CHARS, Category, Urgency
 from .services import retry_analysis, submit_ticket
 
 bp = Blueprint("main", __name__)
+
+# SQLite integers are 64-bit signed; a larger id can't be bound and would be a
+# 500. Out-of-range ids simply don't match the route (404).
+_ID = "int(min=1, max=9223372036854775807)"
 
 
 @bp.get("/")
@@ -91,7 +96,7 @@ def ticket_list():
     )
 
 
-@bp.post("/tickets/<int:ticket_id>/retry")
+@bp.post(f"/tickets/<{_ID}:ticket_id>/retry")
 def ticket_retry(ticket_id: int):
     client = current_app.extensions["triage_client"]
     try:
@@ -109,7 +114,7 @@ def ticket_retry(ticket_id: int):
     return redirect(url_for("main.ticket_detail", ticket_id=ticket_id))
 
 
-@bp.get("/tickets/<int:ticket_id>")
+@bp.get(f"/tickets/<{_ID}:ticket_id>")
 def ticket_detail(ticket_id: int):
     ticket = repository.get_ticket(get_db(), ticket_id)
     if ticket is None:
@@ -122,3 +127,16 @@ def ticket_detail(ticket_id: int):
 
 def _limits() -> dict:
     return {"max_subject": MAX_SUBJECT_CHARS, "max_message": MAX_MESSAGE_CHARS}
+
+
+@bp.app_errorhandler(CSRFError)
+def csrf_failed(_err):
+    """Stale/missing CSRF token (e.g. form open for over an hour). Don't lose
+    what the user typed: show the form again, with a fresh token."""
+    flash("Your session expired. Please submit again.", "warning")
+    if request.endpoint == "main.submit":
+        return (
+            render_template("submit.html", values=request.form, errors={}, **_limits()),
+            400,
+        )
+    return redirect(url_for("main.ticket_list"))

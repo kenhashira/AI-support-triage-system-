@@ -199,8 +199,10 @@ def test_retry_requires_csrf_token(csrf_app, fake_client):
     with csrf_app.app_context():
         ticket_id = seed(get_db(), "x", failed="timeout")
     response = csrf_app.test_client().post(f"/tickets/{ticket_id}/retry")
-    assert response.status_code == 400
+    assert response.status_code == 302  # bounced back to the dashboard
     assert fake_client.calls == []
+    with csrf_app.app_context():
+        assert repository.get_ticket(get_db(), ticket_id)["analysis_status"] == "failed"
 
 
 def test_retry_cannot_be_claimed_twice(db):

@@ -77,6 +77,8 @@ class AnalysisError(Exception):
     """Analysis failed. `code` is a key of ERROR_MESSAGES."""
 
     def __init__(self, code: str):
+        if code not in ERROR_MESSAGES:  # fail loudly on a typo, not later in a template
+            raise ValueError(f"unknown analysis error code: {code!r}")
         super().__init__(code)
         self.code = code
 

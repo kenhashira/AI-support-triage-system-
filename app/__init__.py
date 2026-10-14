@@ -18,8 +18,8 @@ def create_app(test_config: dict | None = None, triage_client=None) -> Flask:
     and `triage_client` to substitute a fake for the Anthropic client.
     """
     app = Flask(__name__)
-    # Reject oversized request bodies early (413); the form is a few KB at most.
-    app.config["MAX_CONTENT_LENGTH"] = 64 * 1024
+    # Reject oversized request bodies early (413); worst-case legit ticket is ~63KB URL-encoded.
+    app.config["MAX_CONTENT_LENGTH"] = 128 * 1024
 
     if test_config is None:
         load_dotenv()
