@@ -69,6 +69,7 @@ ERROR_MESSAGES = {
     "refused": "The AI service declined to analyze this ticket.",
     "truncated": "The AI response was cut off before it finished.",
     "invalid_output": "The AI response was not in the expected format.",
+    "internal": "Something went wrong while analyzing this ticket.",
 }
 
 

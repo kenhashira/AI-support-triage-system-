@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}Ticket #{{ ticket.id }} - Support Triage{% endblock %}
+
+{% block content %}
+<h1>Ticket #{{ ticket.id }}</h1>
+
+<section class="card">
+  <h2>{{ ticket.subject }}</h2>
+  <p class="muted small">From {{ ticket.customer_email }} &middot; {{ ticket.created_at }}</p>
+  <p class="prewrap">{{ ticket.message }}</p>
+</section>
+
+<section class="card">
+  <h2>AI analysis</h2>
+  {% if ticket.analysis_status == 'completed' %}
+    <dl class="facts">
+      <dt>Category</dt><dd>{{ ticket.category }}</dd>
+      <dt>Sentiment</dt><dd>{{ ticket.sentiment }}</dd>
+      <dt>Urgency</dt><dd><span class="badge urgency-{{ ticket.urgency }}">{{ ticket.urgency }}</span></dd>
+      <dt>Human escalation</dt>
+      <dd>
+        {% if ticket.escalate_to_human %}<span class="badge escalate">Recommended</span>
+        {% else %}Not recommended{% endif %}
+      </dd>
+    </dl>
+    <h3>Why</h3>
+    <p>{{ ticket.explanation }}</p>
+    <h3>Suggested response <span class="muted small">(draft &mdash; needs human review before sending)</span></h3>
+    <p class="prewrap draft">{{ ticket.suggested_response }}</p>
+    <p class="muted small">Model: {{ ticket.model }}. AI output is a recommendation only.</p>
+  {% elif ticket.analysis_status == 'failed' %}
+    <p class="error">Analysis failed: {{ error_message }}</p>
+    <p class="muted">The ticket was saved. A person should review it manually.</p>
+  {% else %}
+    <p class="muted">Analysis pending.</p>
+  {% endif %}
+</section>
+{% endblock %}

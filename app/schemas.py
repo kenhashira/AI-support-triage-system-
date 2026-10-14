@@ -50,7 +50,7 @@ class TicketInput(BaseModel):
 
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
 
-    customer_email: str = Field(max_length=254)
+    customer_email: str = Field(min_length=1, max_length=254)
     subject: str = Field(min_length=1, max_length=MAX_SUBJECT_CHARS)
     message: str = Field(min_length=1, max_length=MAX_MESSAGE_CHARS)
 
