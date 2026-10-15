@@ -5,8 +5,8 @@ from flask import Flask, jsonify
 from flask_wtf.csrf import CSRFProtect
 
 from . import db, errors, repository, routes, security
-from .ai_client import AnthropicTriageClient
 from .config import load_config
+from .providers import build_triage_client
 from .ratelimit import GuardedTriageClient, SlidingWindowLimiter
 
 csrf = CSRFProtect()
@@ -45,11 +45,7 @@ def create_app(test_config: dict | None = None, triage_client=None) -> Flask:
     csrf.init_app(app)
     db.init_app(app)
 
-    inner = triage_client or AnthropicTriageClient(
-        api_key=app.config.get("ANTHROPIC_API_KEY", ""),
-        model=app.config.get("ANTHROPIC_MODEL", "claude-haiku-5-5"),
-        timeout=app.config.get("ANTHROPIC_TIMEOUT_SECONDS", 30.0),
-    )
+    inner = triage_client or build_triage_client(app.config)
     app.extensions["triage_client"] = GuardedTriageClient(
         inner, app.config["AI_CALLS_PER_HOUR"]
     )

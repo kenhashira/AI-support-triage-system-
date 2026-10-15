@@ -56,6 +56,8 @@ billing disputes, repeated or severe frustration, anything ambiguous, or \
 anything you cannot responsibly resolve with a draft reply. When unsure, true.
 - explanation: one or two sentences justifying the classification.
 
+Keep suggested_response under 1500 characters and explanation under 400.
+
 You only analyze. You cannot issue refunds or take any action."""
 
 # Fixed, user-safe messages. Never include raw exception or model text.

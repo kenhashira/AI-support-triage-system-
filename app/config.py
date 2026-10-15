@@ -44,8 +44,16 @@ def load_config() -> dict:
     if timeout <= 0:
         raise ConfigError("ANTHROPIC_TIMEOUT_SECONDS must be greater than 0.")
 
+    provider = os.environ.get("AI_PROVIDER", "anthropic").strip().lower()
+    if provider not in ("anthropic", "gemini"):
+        raise ConfigError("AI_PROVIDER must be 'anthropic' or 'gemini'.")
+
     return {
         "SECRET_KEY": secret_key,
+        # Which AI backs the app. Each provider has its own key and model.
+        "AI_PROVIDER": provider,
+        "GEMINI_API_KEY": os.environ.get("GEMINI_API_KEY", ""),
+        "GEMINI_MODEL": os.environ.get("GEMINI_MODEL", "gemini-3.5-flash-lite"),
         # May be empty: the app still starts, and analysis fails with a clear
         # message instead of crashing.
         "ANTHROPIC_API_KEY": os.environ.get("ANTHROPIC_API_KEY", ""),

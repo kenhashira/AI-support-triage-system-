@@ -1,13 +1,19 @@
-"""Optional live check against the real Anthropic API.
+"""Optional live check against the real AI provider.
 
-The test suite never calls the API. This script sends three sample tickets
-through the real client so you can see actual model behaviour. It costs a
-fraction of a cent (three small Haiku-class requests), but it is real spend,
-so it refuses to run without --yes.
+The test suite never calls an API. This script sends three sample tickets
+through the real client (whichever provider AI_PROVIDER selects) so you can see
+actual model behaviour.
+
+  * Claude: a fraction of a cent (three small requests), but real spend.
+  * Gemini: free tier (uses a little of your quota). Google may use free-tier
+    content to improve its products; these samples are invented.
+
+It refuses to run without --yes.
 
     python scripts/live_smoke.py --yes
 
-Needs ANTHROPIC_API_KEY (and optionally ANTHROPIC_MODEL) in your .env.
+Needs the key for the active provider in your .env: ANTHROPIC_API_KEY, or
+GEMINI_API_KEY with AI_PROVIDER=gemini.
 """
 
 import argparse
@@ -19,7 +25,9 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from dotenv import load_dotenv  # noqa: E402
 
-from app.ai_client import AnalysisError, AnthropicTriageClient  # noqa: E402
+from app.ai_client import AnalysisError  # noqa: E402
+from app.config import ConfigError  # noqa: E402
+from app.providers import build_triage_client  # noqa: E402
 from app.schemas import TicketInput  # noqa: E402
 
 SAMPLES = [
@@ -40,22 +48,32 @@ def main() -> int:
     parser.add_argument("--yes", action="store_true", help="confirm you accept the (tiny) API cost")
     args = parser.parse_args()
     if not args.yes:
-        print("Refusing to run: this makes real, paid API calls. Re-run with --yes.")
+        print("Refusing to run: this makes real API calls (paid with Claude, free-tier quota with Gemini). Re-run with --yes.")
         return 2
 
     load_dotenv()
-    api_key = os.environ.get("ANTHROPIC_API_KEY", "")
-    if not api_key:
-        print("ANTHROPIC_API_KEY is not set (put it in .env).")
+    settings = {
+        name: os.environ[name]
+        for name in ("AI_PROVIDER", "ANTHROPIC_API_KEY", "ANTHROPIC_MODEL", "GEMINI_API_KEY", "GEMINI_MODEL")
+        if os.environ.get(name)
+    }
+    if os.environ.get("ANTHROPIC_TIMEOUT_SECONDS"):
+        settings["ANTHROPIC_TIMEOUT_SECONDS"] = float(os.environ["ANTHROPIC_TIMEOUT_SECONDS"])
+    provider = settings.get("AI_PROVIDER", "anthropic").strip().lower()
+    settings["AI_PROVIDER"] = provider
+
+    key_name = "GEMINI_API_KEY" if provider == "gemini" else "ANTHROPIC_API_KEY"
+    if not settings.get(key_name):
+        print(f"{key_name} is not set (put it in .env). Provider: {provider}.")
         return 2
 
     logging.basicConfig(level=logging.INFO, format="  [log] %(message)s")
-    client = AnthropicTriageClient(
-        api_key=api_key,
-        model=os.environ.get("ANTHROPIC_MODEL", "claude-haiku-5-5"),
-        timeout=float(os.environ.get("ANTHROPIC_TIMEOUT_SECONDS", "30")),
-    )
-    print(f"Model: {client.model}\n")
+    try:
+        client = build_triage_client(settings)
+    except ConfigError as exc:
+        print(exc)
+        return 2
+    print(f"Provider: {provider} | Model: {client.model}\n")
 
     failures = 0
     for label, subject, message in SAMPLES:
