@@ -66,7 +66,7 @@ Demo rows use `demo+<n>@example.com` addresses and are clearly not real model ou
 
 - **`SECRET_KEY` errors at startup:** the app refuses to run with a missing, placeholder (`change-me`) or short (under 16 characters) secret. Generate one as shown above.
 - **Windows: `pip install` fails with `No such file or directory` on a very long path:** Windows limits paths to 260 characters and the `anthropic` package has long file names. Clone into a shorter folder (for example `C:\dev\triage`), or enable long paths (`reg add HKLM\SYSTEM\CurrentControlSet\Control\FileSystem /v LongPathsEnabled /t REG_DWORD /d 1 /f` in an administrator terminal, then restart).
-- **Tickets fail with "The AI service returned an error" (`api_error`) right after setup:** this is commonly an account with no credit (check the balance under Billing in the Anthropic Console; the API is billed separately from a Claude.ai subscription) or a misspelled `ANTHROPIC_MODEL`. Each failure is logged as `analysis failed code=... request_id=req_...` (never ticket text), so you can see the code and quote the request ID when asking Anthropic for help. A code of `auth` means the key itself was rejected.
+- **Tickets fail with "The AI service returned an error" (`api_error`) right after setup:** this is commonly an account with no credit (check the balance under Billing in the Anthropic Console; the API is billed separately from a Claude.ai subscription) or a misspelled `ANTHROPIC_MODEL`. Each failure is logged as `analysis failed code=... request_id=req_...` (never ticket text), so you can see the code and quote the request ID when asking Anthropic for help (Gemini calls have no request ID, because they're made with `store=False`). A code of `auth` means the key itself was rejected.
 - **Gemini tickets fail with "The AI service is busy right now" (`rate_limited`):** most likely you've hit the free-tier quota. Wait a while and use **Retry analysis**; your project's current limits are shown in Google AI Studio.
 - **"AI analysis isn't configured yet" on a ticket:** the key for the active provider (`ANTHROPIC_API_KEY`, or `GEMINI_API_KEY` when `AI_PROVIDER=gemini`) is empty. Add it to `.env`, restart, and use **Retry analysis** on the ticket.
 
@@ -213,7 +213,7 @@ Known and deliberate for a demo of this scope:
 - **Prompt-injection defence is risk reduction, not a guarantee.** The real safety property is that model output is advisory and can't act.
 - **Classification quality isn't measured.** There is no labelled evaluation set, so accuracy on real tickets is unknown.
 - **Ticket content leaves your server** (sent to the AI provider you choose). On Gemini's free tier, Google may use it to improve its products. Check your data-handling obligations before using real customer data.
-- **Gemini support has only been exercised against fakes**, like the Claude path before its live check. Its free-tier quotas aren't published in Google's docs (they're shown per project in AI Studio), so how many tickets you can analyze per day is unknown until you look.
+- **Live-verified with Gemini only.** The Gemini path passed a live check (three sample tickets analyzed in about 2-4 seconds each, plus a failed ticket recovered through the Retry button). The Claude path has been exercised against fakes but not run live. Gemini's free-tier quotas aren't published in Google's docs (they're shown per project in AI Studio), so how many tickets you can analyze per day depends on your project. Gemini calls are made with `store=False`, which leaves no interaction ID, so Gemini log lines have an empty `request_id`.
 - **Not deployed.** Nothing here covers HTTPS, a production WSGI server, backups or monitoring.
 
 ## Design decisions and lessons
@@ -237,7 +237,7 @@ Known and deliberate for a demo of this scope:
 - A review of my own tests found one that couldn't fail (it checked the wrong exception attribute); breaking the code on purpose is what revealed it.
 - On Windows, `pip install` can fail inside a deeply nested folder because of the 260-character path limit; see Troubleshooting.
 
-**What isn't proven yet:** the test suite uses fakes, so it shows the app handles every kind of response correctly, but not that the live API accepts the exact request or how well the model classifies real tickets. `scripts/live_smoke.py` is the first check; a labelled evaluation set would be the next.
+**What isn't proven yet:** the test suite uses fakes, so it shows the app handles every kind of response correctly. A live run with Gemini confirmed the provider accepts our exact request and that the three sample tickets were classified sensibly, including a prompt-injection sample that was ignored. Three samples is a smoke test, not a measurement: classification accuracy on real tickets is unknown, and the Claude path still needs its own live check. A labelled evaluation set would be the next step.
 
 ## License
 
